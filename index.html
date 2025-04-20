@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Information Finder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        #start-btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 20px 0;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #start-btn:hover {
+            background-color: #45a049;
+        }
+        #result {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: left;
+            margin-top: 20px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+        .flag {
+            font-size: 50px;
+            margin: 10px 0;
+        }
+        .ip-section {
+            display: flex;
+            justify-content: space-between;
+            background: #e9e9e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .ip-type {
+            font-weight: bold;
+        }
+        .ipv6 {
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>IP Information Finder</h1>
+    <p>Click the button below to find your IP address and location information</p>
+    
+    <button id="start-btn">Start</button>
+    
+    <div class="loading" id="loading">
+        <p>Fetching your information...</p>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('start-btn').addEventListener('click', async function() {
+            const resultDiv = document.getElementById('result');
+            const loadingDiv = document.getElementById('loading');
+            
+            // Show loading, hide results
+            loadingDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+            resultDiv.innerHTML = '';
+            
+            try {
+                // Get local IP (LAN/WiFi address)
+                const localIp = await getLocalIP();
+                
+                // Fetch public IP information
+                const publicInfo = await fetchPublicIP();
+                
+                // Get country flag emoji
+                const flag = getCountryFlag(publicInfo.country);
+                
+                // Format IPv6 address if present
+                const formattedPublicIp = publicInfo.ip.includes(':') 
+                    ? `<span class="ipv6">${publicInfo.ip}</span>` 
+                    : publicInfo.ip;
+                
+                // Display the results
+                resultDiv.innerHTML = `
+                    <h2>Your Network Information:</h2>
+                    
+                    <div class="ip-section">
+                        <span class="ip-type">Local Network IP:</span>
+                        <span>${localIp || 'Not available'}</span>
+                    </div>
+                    
+                    <div class="ip-section">
+                        <span class="ip-type">Public IP:</span>
+                        <span>${formattedPublicIp}</span>
+                    </div>
+                    
+                    <div class="flag">${flag}</div>
+                    
+                    <h3>Location Details:</h3>
+                    <p><strong>Country:</strong> ${publicInfo.country_name} (${publicInfo.country})</p>
+                    <p><strong>City:</strong> ${publicInfo.city || 'Not available'}</p>
+                    <p><strong>Region:</strong> ${publicInfo.region || 'Not available'}</p>
+                    <p><strong>Postal Code:</strong> ${publicInfo.postal || 'Not available'}</p>
+                    <p><strong>Coordinates:</strong> ${publicInfo.latitude ? publicInfo.latitude+', '+publicInfo.longitude : 'Not available'}</p>
+                    <p><strong>Timezone:</strong> ${publicInfo.timezone || 'Not available'}</p>
+                    <p><strong>ISP:</strong> ${publicInfo.org || 'Not available'}</p>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p style="color: red;">Error: ${error.message}</p>
+                    <p>Try refreshing the page or check your internet connection</p>
+                `;
+            } finally {
+                loadingDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+            }
+        });
+        
+        // Function to get local IP (works on Android Chrome)
+        async function getLocalIP() {
+            return new Promise((resolve) => {
+                window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+                
+                const pc = new RTCPeerConnection({iceServers:[]});
+                pc.createDataChannel('');
+                pc.createOffer().then(pc.setLocalDescription.bind(pc));
+                
+                pc.onicecandidate = (ice) => {
+                    if (!ice || !ice.candidate || !ice.candidate.candidate) {
+                        resolve(null);
+                        return;
+                    }
+                    const myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/.exec(ice.candidate.candidate)[1];
+                    resolve(myIP);
+                    pc.onicecandidate = () => {};
+                };
+            });
+        }
+        
+        // Function to fetch public IP info
+        async function fetchPublicIP() {
+            const response = await fetch('https://ipapi.co/json/');
+            if (!response.ok) throw new Error('Failed to fetch IP information');
+            return await response.json();
+        }
+        
+        // Function to get country flag emoji
+        function getCountryFlag(countryCode) {
+            if (!countryCode) return '🌐';
+            return String.fromCodePoint(...[...countryCode.toUpperCase()].map(c => 127397 + c.charCodeAt()));
+        }
+    </script>
+</body>
+</html>
